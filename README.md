@@ -99,7 +99,7 @@ Copy the `custom_components/adlar_heatpump/` folder into your HA `config/custom_
 | COP | — | Calculated: thermal power / electrical power |
 | Calculated Power | W | Calculated: voltage × current |
 
-### Binary Sensors (running status)
+### Diagnose / Binary Sensors (running status)
 | Name | Notes |
 |---|---|
 | Running Status: Refrigerant Recovery | |
@@ -126,6 +126,18 @@ Copy the `custom_components/adlar_heatpump/` folder into your HA `config/custom_
 | Cooling Setting Curve | Select | Off, H1–H8, L1–L8 |
 | Heating Setting Curve | Select | Off, H1–H8, L1–L8 |
 | Underfloor Heating Setting Curve | Select | Off, H1–H8, L1–L8 |
+
+### Config
+| Entity | Type | Options / Range |
+|---|---|---|
+| P26: Hysteresis Water Temp (Cool/Heat) | Number | 0–10 °C |
+| P88: Silent mode - compressor maximum frequency | Number | 20–70 Hz |
+| P89: Silent mode - fan motor maximum frequency | Number | 20–60 Hz |
+| P99: Water pump speed regulation temperature differential | Number | 2–10 °C |
+| P100: PWM pump minimum speed | Number | 20–80 % |
+| P163: Water pump speed regulation - Minimum speed | Number | 0–70 L/min |
+| P260: Maximum water pump speed | Number | 50–99 % |
+| P261: Water pump speed - at constant temperature | Number | 20–99 % |
 
 ---
 

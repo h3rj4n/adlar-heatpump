@@ -1,0 +1,20 @@
+// See https://containers.dev/implementors/json_reference/ for format details.
+// Note that python:0-3.10-bullseye should be used for local arm64/Apple Silicon.
+// Depending on setup, "remoteUser": "vscode", might be preferred to add.
+{
+	"name": "Adlar Heatpump",
+	// "image": "mcr.microsoft.com/devcontainers/python:3.13",
+	"build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+	"postCreateCommand": "scripts/setup",
+	"appPort": [
+		8123
+	],
+	"remoteUser": "vscode",
+	// Podman specific config
+	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,Z",
+	"workspaceFolder": "/workspace",
+	"runArgs": ["--userns=keep-id"]
+}

@@ -1,5 +1,12 @@
 """Constants for Adlar Heatpump integration."""
 
+from dataclasses import dataclass
+
+from homeassistant.components.number import NumberDeviceClass, NumberEntityDescription
+from homeassistant.components.number.const import NumberMode
+from homeassistant.const import EntityCategory
+
+
 DOMAIN = "adlar_heatpump"
 DEFAULT_PORT = 502
 DEFAULT_SLAVE = 1
@@ -76,12 +83,149 @@ STATUS_BITS = [
 # Energy register: enkel 16-bit register, waarde direct in kWh (geen schaling)
 ENERGY_REGISTER = 0x005D
 
-# Writable number registers (address, name, unit, device_class, min, max, step)
-NUMBER_REGISTERS = [
-    (0x0300, "Temp Set Cooling",       "°C", "temperature", 7,  25, 1),
-    (0x0301, "Temp Set Heating",       "°C", "temperature", 15, 60, 1),
-    (0x0303, "Temp Set Floor Heating", "°C", "temperature", 20, 60, 1),
-]
+@dataclass(frozen=True, kw_only=True)
+class AdlarNumberDescription(NumberEntityDescription):
+    """Describes an Adlar Heatpump writable number (setpoint) register.
+
+    `key` doubles as the coordinator data-dict key (kept identical to the
+    legacy display name so other platforms, e.g. climate.py, can keep
+    reading `coordinator.data["Temp Set Cooling"]` unchanged).
+    """
+
+    address: int
+
+
+# Writable number registers — setpoints (visible, no entity_category)
+# plus P-code tuning parameters (entity_category=CONFIG).
+NUMBER_DESCRIPTIONS: tuple[AdlarNumberDescription, ...] = (
+    AdlarNumberDescription(
+        key="Temp Set Cooling",
+        translation_key="temp_set_cooling",
+        address=0x0300,
+        native_unit_of_measurement="°C",
+        device_class=NumberDeviceClass.TEMPERATURE,
+        native_min_value=7,
+        native_max_value=25,
+        native_step=1,
+        mode=NumberMode.BOX,
+    ),
+    AdlarNumberDescription(
+        key="Temp Set Heating",
+        translation_key="temp_set_heating",
+        address=0x0301,
+        native_unit_of_measurement="°C",
+        device_class=NumberDeviceClass.TEMPERATURE,
+        native_min_value=15,
+        native_max_value=60,
+        native_step=1,
+        mode=NumberMode.BOX,
+    ),
+    AdlarNumberDescription(
+        key="Temp Set Floor Heating",
+        translation_key="temp_set_floor_heating",
+        address=0x0303,
+        native_unit_of_measurement="°C",
+        device_class=NumberDeviceClass.TEMPERATURE,
+        native_min_value=20,
+        native_max_value=60,
+        native_step=1,
+        mode=NumberMode.BOX,
+    ),
+    AdlarNumberDescription(
+        key="hysteresis_water_temp",
+        translation_key="hysteresis_water_temp",
+        address=0x011A,
+        entity_category=EntityCategory.CONFIG,
+        native_unit_of_measurement="°C",
+        device_class=NumberDeviceClass.TEMPERATURE,
+        native_min_value=0,
+        native_max_value=10,
+        native_step=1,
+        mode=NumberMode.SLIDER,
+    ),
+    AdlarNumberDescription(
+        key="silent_mode_compressor_max_freq",
+        translation_key="silent_mode_compressor_max_freq",
+        address=0x0158,
+        entity_category=EntityCategory.CONFIG,
+        native_unit_of_measurement="Hz",
+        device_class=NumberDeviceClass.FREQUENCY,
+        native_min_value=20,
+        native_max_value=70,
+        native_step=1,
+        mode=NumberMode.SLIDER,
+    ),
+    AdlarNumberDescription(
+        key="silent_mode_fan_max_freq",
+        translation_key="silent_mode_fan_max_freq",
+        address=0x0159,
+        entity_category=EntityCategory.CONFIG,
+        native_unit_of_measurement="Hz",
+        device_class=NumberDeviceClass.FREQUENCY,
+        native_min_value=20,
+        native_max_value=60,
+        native_step=1,
+        mode=NumberMode.SLIDER,
+    ),
+    AdlarNumberDescription(
+        key="water_pump_speed_reg_temp_diff",
+        translation_key="water_pump_speed_reg_temp_diff",
+        address=0x0163,
+        entity_category=EntityCategory.CONFIG,
+        native_unit_of_measurement="°C",
+        device_class=NumberDeviceClass.TEMPERATURE,
+        native_min_value=2,
+        native_max_value=10,
+        native_step=1,
+        mode=NumberMode.SLIDER,
+    ),
+    AdlarNumberDescription(
+        key="pwm_pump_min_speed",
+        translation_key="pwm_pump_min_speed",
+        address=0x0164,
+        entity_category=EntityCategory.CONFIG,
+        native_unit_of_measurement="%",
+        native_min_value=20,
+        native_max_value=80,
+        native_step=1,
+        mode=NumberMode.SLIDER,
+    ),
+    AdlarNumberDescription(
+        key="water_pump_speed_reg_min_speed",
+        translation_key="water_pump_speed_reg_min_speed",
+        address=0x01A3,
+        entity_category=EntityCategory.CONFIG,
+        native_unit_of_measurement="L/min",
+        device_class=NumberDeviceClass.VOLUME_FLOW_RATE,
+        native_min_value=0,
+        native_max_value=70,
+        native_step=1,
+        mode=NumberMode.SLIDER,
+    ),
+    AdlarNumberDescription(
+        key="max_water_pump_speed",
+        translation_key="max_water_pump_speed",
+        address=0x0204,
+        entity_category=EntityCategory.CONFIG,
+        native_unit_of_measurement="%",
+        native_min_value=50,
+        native_max_value=99,
+        native_step=1,
+        mode=NumberMode.SLIDER,
+    ),
+    AdlarNumberDescription(
+        key="water_pump_speed_constant_temp",
+        translation_key="water_pump_speed_constant_temp",
+        address=0x0205,
+        entity_category=EntityCategory.CONFIG,
+        native_unit_of_measurement="%",
+        native_min_value=20,
+        native_max_value=99,
+        native_step=1,
+        mode=NumberMode.SLIDER,
+    ),
+)
+
 
 # ON/OFF switch register
 SWITCH_REGISTER = 0x0305

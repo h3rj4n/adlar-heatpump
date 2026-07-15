@@ -18,10 +18,10 @@ async def async_setup_entry(
     async_add_entities([AdlarSwitch(coordinator)])
 
 
-class AdlarSwitch(CoordinatorEntity, SwitchEntity):
-    def __init__(self, coordinator):
+class AdlarSwitch(CoordinatorEntity[AdlarCoordinator], SwitchEntity):
+    def __init__(self, coordinator: AdlarCoordinator):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_onoff"
+        self._attr_unique_id = f"{coordinator.entry_id}_onoff"
         self._attr_name = "Heatpump ON/OFF"
 
     @property
@@ -43,7 +43,7 @@ class AdlarSwitch(CoordinatorEntity, SwitchEntity):
     @property
     def device_info(self):
         return {
-            "identifiers": {(DOMAIN, self.coordinator.config_entry.entry_id)},
+            "identifiers": {(DOMAIN, self.coordinator.entry_id)},
             "name": "Adlar Aurora II Heatpump",
             "manufacturer": "Adlar",
             "model": "Aurora II",

@@ -22,13 +22,13 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class AdlarSelect(CoordinatorEntity, SelectEntity):
-    def __init__(self, coordinator, address, name, options_map):
+class AdlarSelect(CoordinatorEntity[AdlarCoordinator], SelectEntity):
+    def __init__(self, coordinator: AdlarCoordinator, address, name, options_map):
         super().__init__(coordinator)
         self._address = address
         self._key = name
         self._options_map = options_map  # label → int
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_sel_{address:04X}"
+        self._attr_unique_id = f"{coordinator.entry_id}_sel_{address:04X}"
         self._attr_name = name
         self._attr_options = list(options_map.keys())
 
@@ -48,7 +48,7 @@ class AdlarSelect(CoordinatorEntity, SelectEntity):
     @property
     def device_info(self):
         return {
-            "identifiers": {(DOMAIN, self.coordinator.config_entry.entry_id)},
+            "identifiers": {(DOMAIN, self.coordinator.entry_id)},
             "name": "Adlar Aurora II Heatpump",
             "manufacturer": "Adlar",
             "model": "Aurora II",

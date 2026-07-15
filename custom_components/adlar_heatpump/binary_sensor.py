@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -22,12 +23,13 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class AdlarBinarySensor(CoordinatorEntity, BinarySensorEntity):
-    def __init__(self, coordinator, mask, name):
+class AdlarBinarySensor(CoordinatorEntity[AdlarCoordinator], BinarySensorEntity):
+    def __init__(self, coordinator: AdlarCoordinator, mask, name):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_status_{mask:04X}"
+        self._attr_unique_id = f"{coordinator.entry_id}_status_{mask:04X}"
         self._attr_name = name
         self._key = name
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def is_on(self) -> bool | None:
@@ -36,7 +38,7 @@ class AdlarBinarySensor(CoordinatorEntity, BinarySensorEntity):
     @property
     def device_info(self):
         return {
-            "identifiers": {(DOMAIN, self.coordinator.config_entry.entry_id)},
+            "identifiers": {(DOMAIN, self.coordinator.entry_id)},
             "name": "Adlar Aurora II Heatpump",
             "manufacturer": "Adlar",
             "model": "Aurora II",

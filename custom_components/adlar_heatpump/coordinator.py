@@ -6,7 +6,6 @@ import ctypes
 import time
 from datetime import timedelta
 
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -14,7 +13,7 @@ from .const import (
     SENSOR_REGISTERS,
     STATUS_REGISTER,
     STATUS_BITS,
-    NUMBER_REGISTERS,
+    NUMBER_DESCRIPTIONS,
     SWITCH_REGISTER,
     SELECT_REGISTERS,
     ENERGY_REGISTER,
@@ -52,6 +51,21 @@ class AdlarCoordinator(DataUpdateCoordinator):
             hass, _LOGGER, name=DOMAIN,
             update_interval=timedelta(seconds=scan_interval),
         )
+
+    @property
+    def entry_id(self) -> str:
+        """Return the config entry ID.
+
+        `DataUpdateCoordinator.config_entry` is typed `ConfigEntry | None`
+        because the base class supports being constructed outside a config
+        entry context. In this integration it is always created from
+        `async_setup_entry`, so it is always set in practice; the assert
+        narrows the type for callers instead of every platform reaching into
+        `coordinator.config_entry.entry_id` (and re-triggering the same
+        possibly-None warning) themselves.
+        """
+        assert self.config_entry is not None
+        return self.config_entry.entry_id
 
     def _get_client(self):
         """Return connected client, reconnect if needed."""
@@ -159,9 +173,13 @@ class AdlarCoordinator(DataUpdateCoordinator):
             data[bit_name] = bool(raw_status & mask) if raw_status is not None else None
 
         # ── Number registers (control register area) ──
-        for address, name, unit, device_class, mn, mx, step in NUMBER_REGISTERS:
-            raw = self._read_one(address)
-            data[name] = _to_signed(raw) if raw is not None else None
+        # NOTE: previously only the 3 setpoint registers were polled here;
+        # the 8 CONFIG (P-code) registers were never fetched, so those
+        # number entities always read back as None. Fixed by iterating the
+        # full description list.
+        for description in NUMBER_DESCRIPTIONS:
+            raw = self._read_one(description.address)
+            data[description.key] = _to_signed(raw) if raw is not None else None
 
         # ── Switch register ──
         raw = self._read_one(SWITCH_REGISTER)

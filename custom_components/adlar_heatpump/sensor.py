@@ -29,7 +29,7 @@ async def async_setup_entry(
 ) -> None:
     coordinator: AdlarCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    entities = [
+    entities: list[SensorEntity] = [
         AdlarSensor(coordinator, address, name, unit, device_class)
         for address, name, unit, device_class, scale, signed in SENSOR_REGISTERS
     ]
@@ -44,10 +44,10 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class AdlarSensor(CoordinatorEntity, SensorEntity):
-    def __init__(self, coordinator, address, name, unit, device_class):
+class AdlarSensor(CoordinatorEntity[AdlarCoordinator], SensorEntity):
+    def __init__(self, coordinator: AdlarCoordinator, address, name, unit, device_class):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{address:04X}"
+        self._attr_unique_id = f"{coordinator.entry_id}_{address:04X}"
         self._attr_name = name
         self._attr_native_unit_of_measurement = unit
         self._attr_device_class = _safe_device_class(device_class)
@@ -61,23 +61,23 @@ class AdlarSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         return {
-            "identifiers": {(DOMAIN, self.coordinator.config_entry.entry_id)},
+            "identifiers": {(DOMAIN, self.coordinator.entry_id)},
             "name": "Adlar Aurora II Heatpump",
             "manufacturer": "Adlar",
             "model": "Aurora II",
         }
 
 
-class AdlarEnergySensor(CoordinatorEntity, SensorEntity):
+class AdlarEnergySensor(CoordinatorEntity[AdlarCoordinator], SensorEntity):
     """Totaal energieverbruik sensor.
 
     Gebruikt state_class=TOTAL zodat Home Assistant een daling (bijv. na reset
     van de interne teller) correct interpreteert als een reset en niet als fout.
     """
 
-    def __init__(self, coordinator):
+    def __init__(self, coordinator: AdlarCoordinator):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_005D"
+        self._attr_unique_id = f"{coordinator.entry_id}_005D"
         self._attr_name = "Unit Power Consumption"
         self._attr_native_unit_of_measurement = "kWh"
         self._attr_device_class = SensorDeviceClass.ENERGY
@@ -91,19 +91,19 @@ class AdlarEnergySensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         return {
-            "identifiers": {(DOMAIN, self.coordinator.config_entry.entry_id)},
+            "identifiers": {(DOMAIN, self.coordinator.entry_id)},
             "name": "Adlar Aurora II Heatpump",
             "manufacturer": "Adlar",
             "model": "Aurora II",
         }
 
 
-class AdlarThermalPowerSensor(CoordinatorEntity, SensorEntity):
+class AdlarThermalPowerSensor(CoordinatorEntity[AdlarCoordinator], SensorEntity):
     """Thermal power output calculated from flow and delta-T."""
 
-    def __init__(self, coordinator):
+    def __init__(self, coordinator: AdlarCoordinator):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_thermal_power"
+        self._attr_unique_id = f"{coordinator.entry_id}_thermal_power"
         self._attr_name = "Thermal Power"
         self._attr_native_unit_of_measurement = "kW"
         self._attr_device_class = SensorDeviceClass.POWER
@@ -126,19 +126,19 @@ class AdlarThermalPowerSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         return {
-            "identifiers": {(DOMAIN, self.coordinator.config_entry.entry_id)},
+            "identifiers": {(DOMAIN, self.coordinator.entry_id)},
             "name": "Adlar Aurora II Heatpump",
             "manufacturer": "Adlar",
             "model": "Aurora II",
         }
 
 
-class AdlarCOPSensor(CoordinatorEntity, SensorEntity):
+class AdlarCOPSensor(CoordinatorEntity[AdlarCoordinator], SensorEntity):
     """COP = Thermal Power / Electrical Power."""
 
-    def __init__(self, coordinator):
+    def __init__(self, coordinator: AdlarCoordinator):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_cop"
+        self._attr_unique_id = f"{coordinator.entry_id}_cop"
         self._attr_name = "COP"
         self._attr_native_unit_of_measurement = None
         self._attr_device_class = None
@@ -164,19 +164,19 @@ class AdlarCOPSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         return {
-            "identifiers": {(DOMAIN, self.coordinator.config_entry.entry_id)},
+            "identifiers": {(DOMAIN, self.coordinator.entry_id)},
             "name": "Adlar Aurora II Heatpump",
             "manufacturer": "Adlar",
             "model": "Aurora II",
         }
 
 
-class AdlarCalculatedPowerSensor(CoordinatorEntity, SensorEntity):
+class AdlarCalculatedPowerSensor(CoordinatorEntity[AdlarCoordinator], SensorEntity):
     """Estimated power = Supply Voltage x Compressor Current Draw."""
 
-    def __init__(self, coordinator):
+    def __init__(self, coordinator: AdlarCoordinator):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_calculated_power"
+        self._attr_unique_id = f"{coordinator.entry_id}_calculated_power"
         self._attr_name = "Calculated Power"
         self._attr_native_unit_of_measurement = "W"
         self._attr_device_class = SensorDeviceClass.POWER
@@ -198,19 +198,19 @@ class AdlarCalculatedPowerSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         return {
-            "identifiers": {(DOMAIN, self.coordinator.config_entry.entry_id)},
+            "identifiers": {(DOMAIN, self.coordinator.entry_id)},
             "name": "Adlar Aurora II Heatpump",
             "manufacturer": "Adlar",
             "model": "Aurora II",
         }
 
 
-class AdlarRefrigerantSensor(CoordinatorEntity, SensorEntity):
+class AdlarRefrigerantSensor(CoordinatorEntity[AdlarCoordinator], SensorEntity):
     """Koelmiddeltype sensor — toont R32/R290/R410A op basis van P119 (0x0177)."""
 
-    def __init__(self, coordinator):
+    def __init__(self, coordinator: AdlarCoordinator):
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_refrigerant_type"
+        self._attr_unique_id = f"{coordinator.entry_id}_refrigerant_type"
         self._attr_name = "Refrigerant Type"
         self._attr_native_unit_of_measurement = None
         self._attr_device_class = None
@@ -231,7 +231,7 @@ class AdlarRefrigerantSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         return {
-            "identifiers": {(DOMAIN, self.coordinator.config_entry.entry_id)},
+            "identifiers": {(DOMAIN, self.coordinator.entry_id)},
             "name": "Adlar Aurora II Heatpump",
             "manufacturer": "Adlar",
             "model": "Aurora II",

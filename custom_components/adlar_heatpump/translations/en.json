@@ -24,5 +24,42 @@
         }
       }
     }
+  },
+  "entity": {
+    "number": {
+      "temp_set_cooling": {
+        "name": "Temp Set Cooling"
+      },
+      "temp_set_heating": {
+        "name": "Temp Set Heating"
+      },
+      "temp_set_floor_heating": {
+        "name": "Temp Set Floor Heating"
+      },
+      "hysteresis_water_temp": {
+        "name": "P26: Hysteresis Water Temp (Cool/Heat)"
+      },
+      "silent_mode_compressor_max_freq": {
+        "name": "P88: Silent mode - compressor maximum frequency"
+      },
+      "silent_mode_fan_max_freq": {
+        "name": "P89: Silent mode - fan motor maximum frequency"
+      },
+      "water_pump_speed_reg_temp_diff": {
+        "name": "P99: Water pump speed regulation temperature differential"
+      },
+      "pwm_pump_min_speed": {
+        "name": "P100: PWM pump minimum speed"
+      },
+      "water_pump_speed_reg_min_speed": {
+        "name": "P163: Water pump speed regulation - Minimum speed"
+      },
+      "max_water_pump_speed": {
+        "name": "P260: Maximum water pump speed"
+      },
+      "water_pump_speed_constant_temp": {
+        "name": "P261: Water pump speed - at constant temperature"
+      }
+    }
   }
 }

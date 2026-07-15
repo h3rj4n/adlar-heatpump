@@ -1,13 +1,11 @@
 """Climate platform for Adlar Heatpump."""
 from __future__ import annotations
 
-from homeassistant.components.climate import (
-    ClimateEntity,
-    ClimateEntityFeature,
-    HVACMode,
-)
+from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
+    ClimateEntityFeature,
     HVACAction,
+    HVACMode,
     PRESET_BOOST,
     PRESET_ECO,
     PRESET_NONE,
@@ -18,7 +16,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, SWITCH_REGISTER, SELECT_REGISTERS, NUMBER_REGISTERS
+from .const import DOMAIN
 from .coordinator import AdlarCoordinator
 
 # Modbus register addresses
@@ -54,7 +52,7 @@ async def async_setup_entry(
     async_add_entities([AdlarClimate(coordinator)])
 
 
-class AdlarClimate(CoordinatorEntity, ClimateEntity):
+class AdlarClimate(CoordinatorEntity[AdlarCoordinator], ClimateEntity):
     """Climate entity for Adlar Aurora II."""
 
     _attr_name = "Adlar Heatpump"
@@ -69,7 +67,7 @@ class AdlarClimate(CoordinatorEntity, ClimateEntity):
 
     def __init__(self, coordinator: AdlarCoordinator) -> None:
         super().__init__(coordinator)
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_climate"
+        self._attr_unique_id = f"{coordinator.entry_id}_climate"
 
     @property
     def current_temperature(self) -> float | None:
@@ -81,7 +79,7 @@ class AdlarClimate(CoordinatorEntity, ClimateEntity):
         is_on = self.coordinator.data.get("ON/OFF")
         if not is_on:
             return HVACMode.OFF
-        mode_str = self.coordinator.data.get("Mode")
+        mode_str = self.coordinator.data.get("Mode", "")
         mode_map = {"Cooling": HVACMode.COOL, "Heating": HVACMode.HEAT, "Floor Heating": HVACMode.HEAT_COOL}
         return mode_map.get(mode_str, HVACMode.OFF)
 
@@ -103,7 +101,7 @@ class AdlarClimate(CoordinatorEntity, ClimateEntity):
     @property
     def target_temperature(self) -> float | None:
         """Return setpoint for current mode."""
-        mode_str = self.coordinator.data.get("Mode")
+        mode_str = self.coordinator.data.get("Mode", "")
         setpoint_map = {
             "Cooling":       "Temp Set Cooling",
             "Heating":       "Temp Set Heating",
@@ -124,7 +122,7 @@ class AdlarClimate(CoordinatorEntity, ClimateEntity):
     @property
     def preset_mode(self) -> str | None:
         """Return current preset (Standard/Boost/Silent)."""
-        running_mode = self.coordinator.data.get("Running Mode")
+        running_mode = self.coordinator.data.get("Running Mode", "")
         mode_map = {
             "Standard Mode": PRESET_NONE,
             "Boost":         PRESET_BOOST,
@@ -162,7 +160,7 @@ class AdlarClimate(CoordinatorEntity, ClimateEntity):
         temp = kwargs.get("temperature")
         if temp is None:
             return
-        mode_str = self.coordinator.data.get("Mode")
+        mode_str = self.coordinator.data.get("Mode", "")
         setpoint_register_map = {
             "Cooling":       _SETPOINT_COOLING,
             "Heating":       _SETPOINT_HEATING,
@@ -178,7 +176,7 @@ class AdlarClimate(CoordinatorEntity, ClimateEntity):
     @property
     def device_info(self):
         return {
-            "identifiers": {(DOMAIN, self.coordinator.config_entry.entry_id)},
+            "identifiers": {(DOMAIN, self.coordinator.entry_id)},
             "name": "Adlar Aurora II Heatpump",
             "manufacturer": "Adlar",
             "model": "Aurora II",

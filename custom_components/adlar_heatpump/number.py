@@ -1,13 +1,13 @@
 """Number platform for Adlar Heatpump (writable setpoints)."""
 from __future__ import annotations
 
-from homeassistant.components.number import NumberDeviceClass, NumberEntity, NumberMode
+from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, NUMBER_REGISTERS
+from .const import DOMAIN, NUMBER_DESCRIPTIONS, AdlarNumberDescription
 from .coordinator import AdlarCoordinator
 
 
@@ -15,41 +15,36 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     coordinator: AdlarCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities = [
-        AdlarNumber(coordinator, address, name, unit, device_class, mn, mx, step)
-        for address, name, unit, device_class, mn, mx, step in NUMBER_REGISTERS
-    ]
-    async_add_entities(entities)
+    async_add_entities(
+        AdlarNumber(coordinator, description) for description in NUMBER_DESCRIPTIONS
+    )
 
 
-class AdlarNumber(CoordinatorEntity, NumberEntity):
-    def __init__(self, coordinator, address, name, unit, device_class, mn, mx, step):
+class AdlarNumber(CoordinatorEntity[AdlarCoordinator], NumberEntity):
+    """Writable setpoint/parameter entity backed by an AdlarNumberDescription."""
+
+    entity_description: AdlarNumberDescription
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator: AdlarCoordinator, description: AdlarNumberDescription) -> None:
         super().__init__(coordinator)
-        self._address = address
-        self._key = name
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_num_{address:04X}"
-        self._attr_name = name
-        self._attr_native_unit_of_measurement = unit
-        self._attr_device_class = NumberDeviceClass.TEMPERATURE if device_class == "temperature" else None
-        self._attr_native_min_value = mn
-        self._attr_native_max_value = mx
-        self._attr_native_step = step
-        self._attr_mode = NumberMode.BOX
+        self.entity_description = description
+        self._attr_unique_id = f"{coordinator.entry_id}_num_{description.address:04X}"
 
     @property
     def native_value(self) -> float | None:
-        return self.coordinator.data.get(self._key)
+        return self.coordinator.data.get(self.entity_description.key)
 
     async def async_set_native_value(self, value: float) -> None:
         await self.hass.async_add_executor_job(
-            self.coordinator.write_register, self._address, int(value)
+            self.coordinator.write_register, self.entity_description.address, int(value)
         )
         await self.coordinator.async_request_refresh()
 
     @property
     def device_info(self):
         return {
-            "identifiers": {(DOMAIN, self.coordinator.config_entry.entry_id)},
+            "identifiers": {(DOMAIN, self.coordinator.entry_id)},
             "name": "Adlar Aurora II Heatpump",
             "manufacturer": "Adlar",
             "model": "Aurora II",

@@ -4,5 +4,5 @@
   "documentation": "https://github.com/conradhagemans/adlar-heatpump",
   "issue_tracker": "https://github.com/conradhagemans/adlar-heatpump/issues",
   "render_readme": true,
-  "homeassistant": "2023.1.0"
+  "homeassistant": "2026.7.0"
 }

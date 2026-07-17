@@ -154,8 +154,8 @@ The default scan interval is 60 seconds. The scan interval can be adjusted in th
 ## TODO
 
 [x] Increase scan interval by grouping registers into single requests (35+ requests per poll cycle --> 8 requests per poll cycle)
+[x] Update sensor data faster after value being changed in UI.
 [ ] Different scan intervals for different register types (e.g. faster for control registers, slower for status registers).
-[ ] Update sensor data faster after value being changed in UI.
 
 ---
 

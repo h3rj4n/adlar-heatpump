@@ -5,7 +5,7 @@ import logging
 import ctypes
 import time
 from datetime import timedelta
-from typing import NamedTuple
+from typing import Any, NamedTuple
 from pymodbus.client import ModbusTcpClient
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -270,3 +270,41 @@ class AdlarCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Write error at 0x%04X: %s", address, err)
             self._client = None
             return False
+
+    def _decode_single(self, address: int, raw: int) -> Any:
+        """Apply the same decoding _fetch_all uses for a single raw register value."""
+        if address == SWITCH_REGISTER:
+            return bool(raw)
+        for desc in NUMBER_DESCRIPTIONS:
+            if desc.address == address:
+                return _to_signed(raw)
+        for reg_address, _name, options_map in SELECT_REGISTERS:
+            if reg_address == address:
+                rev = {v: k for k, v in options_map.items()}
+                return rev.get(raw, f"Unknown ({raw})")
+        return raw
+
+    def _write_and_read(self, address: int, value: int) -> int | None:
+        """Blocking: write register then immediately read it back.
+
+        Returns the new raw register value, or None if either operation failed.
+        """
+        if not self.write_register(address, value):
+            return None
+        return self._read_one(address)
+
+    async def async_write_register(self, address: int, value: int) -> bool:
+        """Write a register and update coordinator data without a full poll.
+
+        Writes the value, reads back the confirmed register, decodes it, stores
+        it in coordinator.data, and notifies all subscribed entities immediately.
+        Returns True on success.
+        """
+        raw = await self.hass.async_add_executor_job(
+            self._write_and_read, address, value
+        )
+        if raw is None or self.data is None:
+            return False
+        self.data[address] = self._decode_single(address, raw)
+        self.async_update_listeners()
+        return True

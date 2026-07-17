@@ -39,10 +39,7 @@ class AdlarSelect(CoordinatorEntity[AdlarCoordinator], SelectEntity):
         value = self._options_map.get(option)
         if value is None:
             return
-        await self.hass.async_add_executor_job(
-            self.coordinator.write_register, self._address, value
-        )
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_write_register(self._address, value)
 
     @property
     def device_info(self):

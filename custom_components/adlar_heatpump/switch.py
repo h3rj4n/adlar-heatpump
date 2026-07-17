@@ -29,16 +29,10 @@ class AdlarSwitch(CoordinatorEntity[AdlarCoordinator], SwitchEntity):
         return self.coordinator.data.get(SWITCH_REGISTER)
 
     async def async_turn_on(self, **kwargs) -> None:
-        await self.hass.async_add_executor_job(
-            self.coordinator.write_register, SWITCH_REGISTER, 1
-        )
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_write_register(SWITCH_REGISTER, 1)
 
     async def async_turn_off(self, **kwargs) -> None:
-        await self.hass.async_add_executor_job(
-            self.coordinator.write_register, SWITCH_REGISTER, 0
-        )
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_write_register(SWITCH_REGISTER, 0)
 
     @property
     def device_info(self):

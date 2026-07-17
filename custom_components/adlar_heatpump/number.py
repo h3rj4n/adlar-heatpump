@@ -36,10 +36,7 @@ class AdlarNumber(CoordinatorEntity[AdlarCoordinator], NumberEntity):
         return self.coordinator.data.get(self.entity_description.address)
 
     async def async_set_native_value(self, value: float) -> None:
-        await self.hass.async_add_executor_job(
-            self.coordinator.write_register, self.entity_description.address, int(value)
-        )
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_write_register(self.entity_description.address, int(value))
 
     @property
     def device_info(self):

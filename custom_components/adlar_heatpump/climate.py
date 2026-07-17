@@ -137,27 +137,17 @@ class AdlarClimate(CoordinatorEntity[AdlarCoordinator], ClimateEntity):
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         """Set preset mode (Standard/Boost/Silent)."""
         modbus_value = _PRESET_TO_MODBUS.get(preset_mode, 0)
-        await self.hass.async_add_executor_job(
-            self.coordinator.write_register, RUNNING_MODE_REGISTER, modbus_value
-        )
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_write_register(RUNNING_MODE_REGISTER, modbus_value)
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set HVAC mode (on/off + mode register)."""
         if hvac_mode == HVACMode.OFF:
-            await self.hass.async_add_executor_job(
-                self.coordinator.write_register, SWITCH_REGISTER, 0
-            )
+            await self.coordinator.async_write_register(SWITCH_REGISTER, 0)
         else:
             modbus_mode = _HVAC_TO_MODBUS.get(hvac_mode)
             if modbus_mode is not None:
-                await self.hass.async_add_executor_job(
-                    self.coordinator.write_register, MODE_REGISTER, modbus_mode
-                )
-            await self.hass.async_add_executor_job(
-                self.coordinator.write_register, SWITCH_REGISTER, 1
-            )
-        await self.coordinator.async_request_refresh()
+                await self.coordinator.async_write_register(MODE_REGISTER, modbus_mode)
+            await self.coordinator.async_write_register(SWITCH_REGISTER, 1)
 
     async def async_set_temperature(self, **kwargs) -> None:
         """Set target temperature for current mode."""
@@ -172,10 +162,7 @@ class AdlarClimate(CoordinatorEntity[AdlarCoordinator], ClimateEntity):
         }
         register = setpoint_register_map.get(mode_str)
         if register is not None:
-            await self.hass.async_add_executor_job(
-                self.coordinator.write_register, register, int(temp)
-            )
-        await self.coordinator.async_request_refresh()
+            await self.coordinator.async_write_register(register, int(temp))
 
     @property
     def device_info(self):

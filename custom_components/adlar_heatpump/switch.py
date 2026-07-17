@@ -26,7 +26,7 @@ class AdlarSwitch(CoordinatorEntity[AdlarCoordinator], SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
-        return self.coordinator.data.get("ON/OFF")
+        return self.coordinator.data.get(SWITCH_REGISTER)
 
     async def async_turn_on(self, **kwargs) -> None:
         await self.hass.async_add_executor_job(

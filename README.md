@@ -143,16 +143,19 @@ Copy the `custom_components/adlar_heatpump/` folder into your HA `config/custom_
 
 ## Technical notes
 
-### Modbus addressing
-This integration applies a **-1 address offset** to sensor registers (`0x0040`–`0x0085`). The Aurora II firmware uses 1-based register addressing in this range, while pymodbus uses 0-based addressing. Control registers (`0x0300`+) and status registers (`0x0000`) do not require this correction.
-
 ### Registers not available on R32 model
 The following registers always return 0 on the R32 (Aurora II) model and are excluded:
 - `0x0044` AC Input Voltage
 - `0x0047` Compressor IPM Temperature
 
 ### Scan interval
-The default scan interval is 60 seconds. With ~40 registers × 200ms delay = ~8 seconds per poll cycle, a minimum of 30 seconds is recommended.
+The default scan interval is 60 seconds. The scan interval can be adjusted in the configuration but must be at least 5 seconds.
+
+## TODO
+
+[x] Increase scan interval by grouping registers into single requests (35+ requests per poll cycle --> 8 requests per poll cycle)
+[ ] Different scan intervals for different register types (e.g. faster for control registers, slower for status registers).
+[ ] Update sensor data faster after value being changed in UI.
 
 ---
 

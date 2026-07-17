@@ -5,6 +5,8 @@ import logging
 import ctypes
 import time
 from datetime import timedelta
+from typing import NamedTuple
+from pymodbus.client import ModbusTcpClient
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -12,7 +14,6 @@ from .const import (
     DOMAIN,
     SENSOR_REGISTERS,
     STATUS_REGISTER,
-    STATUS_BITS,
     NUMBER_DESCRIPTIONS,
     SWITCH_REGISTER,
     SELECT_REGISTERS,
@@ -24,17 +25,55 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Delay between individual register reads (seconds)
-# Gives the JPX-3002 splitter and EW11 time to process each request
-REQUEST_DELAY = 0.2
+# Delay between every Modbus request (reads and writes).
+# The EW11 WiFi-to-RS485 bridge and JPX-3002 splitter need a small inter-
+# request gap to avoid dropped frames. With block reads we make ~8 requests
+# per poll instead of ~35, so even 50 ms here costs only ~400 ms total vs
+# the previous 7 s. Raise if you see repeated read errors in the log;
+# lower (or set to 0) if your hardware handles back-to-back requests fine.
+INTER_REQUEST_DELAY = 0.05  # seconds between every read request
+WRITE_DELAY = 0.2           # seconds before each write (kept conservative)
 
-# Registers die een temperatuur zijn (device_class == "temperature")
-# Schaling wordt bepaald door P119 koelmiddeltype
 TEMPERATURE_DEVICE_CLASS = "temperature"
 
+class _Block(NamedTuple):
+    """Start/end address pair (both inclusive) for a bulk register read."""
+    start: int
+    end: int
+
+
+# Consecutive (or near-consecutive) registers grouped into single
+# read_holding_registers calls. Gaps within a block are fetched but discarded.
+#
+# Isolated single reads: 0x0027 (compressor target), 0x0000 (status),
+#                        0x0085 (DC bus), 0x011A (hysteresis), 0x01A3 (min flow).
+_REGISTER_BLOCKS: dict[str, _Block] = {
+    "sensors":  _Block(0x0040, 0x005D),  # 30 regs — SENSOR_REGISTERS + ENERGY_REGISTER
+    "config12": _Block(0x0158, 0x0164),  # 13 regs — silent-mode freqs + pump-speed params (9-reg gap)
+    "config3":  _Block(0x0204, 0x0205),  #  2 regs — max / constant pump speed
+    "ctrl":     _Block(0x0300, 0x0316),  # 23 regs — setpoints, mode, ON/OFF, curves (11-reg gap)
+}
+
+
+# ── Pure helpers ───────────────────────────────────────────────────────────────
 
 def _to_signed(value: int) -> int:
     return ctypes.c_int16(value).value
+
+
+def _apply_scale(
+    raw: int | None,
+    device_class: str | None,
+    scale: float,
+    signed: bool,
+    temperature_scale: float,
+) -> int | float | None:
+    """Convert raw register value to a scaled sensor value."""
+    if raw is None:
+        return None
+    value = _to_signed(raw) if signed else raw
+    effective_scale = temperature_scale if device_class == TEMPERATURE_DEVICE_CLASS else scale
+    return round(value * effective_scale, 1) if effective_scale != 1 else value
 
 
 class AdlarCoordinator(DataUpdateCoordinator):
@@ -43,7 +82,7 @@ class AdlarCoordinator(DataUpdateCoordinator):
         self.host = host
         self.port = port
         self.slave = slave
-        self._client = None
+        self._client: ModbusTcpClient | None = None
         self.refrigerant_type: int | None = None
         self.refrigerant_name: str = "Unknown"
         self.temperature_scale: float = 1.0  # default R32
@@ -67,9 +106,8 @@ class AdlarCoordinator(DataUpdateCoordinator):
         assert self.config_entry is not None
         return self.config_entry.entry_id
 
-    def _get_client(self):
+    def _get_client(self) -> ModbusTcpClient:
         """Return connected client, reconnect if needed."""
-        from pymodbus.client import ModbusTcpClient
         if self._client is None or not self._client.connected:
             if self._client is not None:
                 try:
@@ -81,18 +119,18 @@ class AdlarCoordinator(DataUpdateCoordinator):
         return self._client
 
     def _read_one(self, address: int) -> int | None:
-        """Read a single holding register with delay. Reconnects on failure.
+        """Read a single holding register. Reconnects on failure.
 
         No address offset is applied. pymodbus uses 0-based addressing natively,
         identical to jsmodbus. Register 0x0040 = address 0x0040.
         """
-        time.sleep(REQUEST_DELAY)
+        time.sleep(INTER_REQUEST_DELAY)
         try:
             client = self._get_client()
             result = client.read_holding_registers(
                 address=address, count=1, device_id=self.slave
             )
-            if hasattr(result, 'isError') and result.isError():
+            if hasattr(result, "isError") and result.isError():
                 _LOGGER.warning("Error reading register 0x%04X", address)
                 return None
             return result.registers[0]
@@ -101,19 +139,41 @@ class AdlarCoordinator(DataUpdateCoordinator):
             self._client = None
             return None
 
-    def _detect_refrigerant(self) -> None:
-        """Lees P119 (0x0177) en stel temperatuurschaling in.
+    def _read_block(self, start: int, count: int) -> list[int | None]:
+        """Read `count` consecutive holding registers starting at `start`.
 
-        Wordt éénmalig uitgevoerd bij de eerste poll.
-        R32  (2) → ×1.0  (directe °C waarden)
+        Returns a list of raw values (int). On failure the entire block is
+        returned as None values so callers can continue with partial data.
+        """
+        time.sleep(INTER_REQUEST_DELAY)
+        try:
+            client = self._get_client()
+            result = client.read_holding_registers(
+                address=start, count=count, device_id=self.slave
+            )
+            if hasattr(result, "isError") and result.isError():
+                _LOGGER.warning("Error reading block 0x%04X[%d]", start, count)
+                return [None] * count
+            return list(result.registers)
+        except Exception as err:
+            _LOGGER.warning(
+                "Exception reading block 0x%04X[%d]: %s — reconnecting", start, count, err
+            )
+            self._client = None
+            return [None] * count
+
+    def _detect_refrigerant(self) -> None:
+        """Read P119 (0x0177) and set temperature scaling.
+
+        Called once on the first poll.
+        R32  (2) → ×1.0  (direct °C values)
         R290 (3) → ×0.1  (raw/10 = °C)
-        R410A(1) → ×1.0  (aanname gelijk aan R32)
+        R410A(1) → ×1.0  (assumed same as R32)
         """
         raw = self._read_one(REFRIGERANT_REGISTER)
         if raw is None:
             _LOGGER.warning(
-                "P119 (0x0177) kon niet worden uitgelezen — "
-                "standaard temperatuurschaling ×1 (R32) wordt gebruikt"
+                "P119 (0x0177) unreadable — default temperature scaling ×1 (R32)"
             )
             return
 
@@ -122,7 +182,7 @@ class AdlarCoordinator(DataUpdateCoordinator):
         self.temperature_scale = get_temperature_scale(raw)
 
         _LOGGER.info(
-            "Koelmiddeltype gedetecteerd: %s (P119=%d) — temperatuurschaling: ×%s",
+            "Refrigerant detected: %s (P119=%d) — temperature scaling: ×%s",
             self.refrigerant_name,
             raw,
             self.temperature_scale,
@@ -137,69 +197,70 @@ class AdlarCoordinator(DataUpdateCoordinator):
     def _fetch_all(self) -> dict:
         data: dict = {}
 
-        # ── Eénmalig: koelmiddeltype detecteren ──
+        # ── One-time: refrigerant detection ──
+        # Results live on coordinator.refrigerant_name / coordinator.temperature_scale;
+        # they are not polled register values and are not stored in data.
         if self.refrigerant_type is None:
             self._detect_refrigerant()
 
-        # Sla koelmiddelinfo op in data zodat het als sensor beschikbaar is
-        data["Refrigerant Type"] = self.refrigerant_name
-        data["Temperature Scale"] = self.temperature_scale
+        # ── Build flat address → raw-value map ─────────────────────────────
+        # Each block read covers a contiguous range; addresses not in any block
+        # (currently 0x0085, 0x011A, 0x01A3) are single-read on demand below.
+        raw: dict[int, int | None] = {}
+        for b in _REGISTER_BLOCKS.values():
+            block = self._read_block(b.start, b.end - b.start + 1)
+            for offset, value in enumerate(block):
+                raw[b.start + offset] = value
 
-        # ── Compressor target frequency ──
-        raw = self._read_one(0x0027)
-        data["Compressor Target Frequency"] = raw
+        raw[STATUS_REGISTER] = self._read_one(STATUS_REGISTER)  # 0x0000
+        raw[0x0027]           = self._read_one(0x0027)           # compressor target freq
 
-        # ── Sensor registers ──
+        # ── Populate data from raw ─────────────────────────────────────────
+
+        # Compressor target frequency
+        data[0x0027] = raw[0x0027]
+
+        # Status bitmask — binary_sensor entities apply their own mask
+        data[STATUS_REGISTER] = raw[STATUS_REGISTER]
+
+        # Sensor registers — fall back to single read for addresses outside all blocks
         for address, name, unit, device_class, scale, signed in SENSOR_REGISTERS:
-            raw = self._read_one(address)
-            if raw is None:
-                data[name] = None
-            else:
-                value = _to_signed(raw) if signed else raw
-                # Temperatuurregisters: schaling uit P119
-                if device_class == TEMPERATURE_DEVICE_CLASS:
-                    effective_scale = self.temperature_scale
-                else:
-                    effective_scale = scale
-                data[name] = round(value * effective_scale, 1) if effective_scale != 1 else value
+            if address not in raw:
+                raw[address] = self._read_one(address)
+            data[address] = _apply_scale(raw[address], device_class, scale, signed, self.temperature_scale)
 
-        # ── Energy register (single 16-bit, value directly in kWh) ──
-        raw = self._read_one(ENERGY_REGISTER)
-        data["Unit Power Consumption"] = float(raw) if raw is not None else None
+        # Energy register (0x005D — covered by sensors block)
+        r = raw.get(ENERGY_REGISTER)
+        data[ENERGY_REGISTER] = float(r) if r is not None else None
 
-        # ── Status bitmask ──
-        raw_status = self._read_one(STATUS_REGISTER)
-        for mask, bit_name in STATUS_BITS:
-            data[bit_name] = bool(raw_status & mask) if raw_status is not None else None
+        # Number descriptions — 0x011A and 0x01A3 are not in any block
+        for desc in NUMBER_DESCRIPTIONS:
+            if desc.address not in raw:
+                raw[desc.address] = self._read_one(desc.address)
+            r = raw[desc.address]
+            data[desc.address] = _to_signed(r) if r is not None else None
 
-        # ── Number registers (control register area) ──
-        # NOTE: previously only the 3 setpoint registers were polled here;
-        # the 8 CONFIG (P-code) registers were never fetched, so those
-        # number entities always read back as None. Fixed by iterating the
-        # full description list.
-        for description in NUMBER_DESCRIPTIONS:
-            raw = self._read_one(description.address)
-            data[description.key] = _to_signed(raw) if raw is not None else None
+        # Switch (0x0305 — covered by ctrl block)
+        r = raw.get(SWITCH_REGISTER)
+        data[SWITCH_REGISTER] = bool(r) if r is not None else None
 
-        # ── Switch register ──
-        raw = self._read_one(SWITCH_REGISTER)
-        data["ON/OFF"] = bool(raw) if raw is not None else None
-
-        # ── Select registers ──
+        # Select registers (all covered by ctrl block)
         for address, name, options_map in SELECT_REGISTERS:
-            raw = self._read_one(address)
-            if raw is None:
-                data[name] = None
+            if address not in raw:
+                raw[address] = self._read_one(address)
+            r = raw[address]
+            if r is None:
+                data[address] = None
             else:
                 rev = {v: k for k, v in options_map.items()}
-                data[name] = rev.get(raw, f"Unknown ({raw})")
+                data[address] = rev.get(r, f"Unknown ({r})")
 
         return data
 
     def write_register(self, address: int, value: int) -> bool:
         """Write a single holding register."""
         try:
-            time.sleep(REQUEST_DELAY)
+            time.sleep(WRITE_DELAY)
             client = self._get_client()
             result = client.write_register(
                 address=address, value=value, device_id=self.slave

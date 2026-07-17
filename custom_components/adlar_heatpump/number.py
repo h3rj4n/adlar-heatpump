@@ -33,7 +33,7 @@ class AdlarNumber(CoordinatorEntity[AdlarCoordinator], NumberEntity):
 
     @property
     def native_value(self) -> float | None:
-        return self.coordinator.data.get(self.entity_description.key)
+        return self.coordinator.data.get(self.entity_description.address)
 
     async def async_set_native_value(self, value: float) -> None:
         await self.hass.async_add_executor_job(

@@ -26,7 +26,6 @@ class AdlarSelect(CoordinatorEntity[AdlarCoordinator], SelectEntity):
     def __init__(self, coordinator: AdlarCoordinator, address, name, options_map):
         super().__init__(coordinator)
         self._address = address
-        self._key = name
         self._options_map = options_map  # label → int
         self._attr_unique_id = f"{coordinator.entry_id}_sel_{address:04X}"
         self._attr_name = name
@@ -34,7 +33,7 @@ class AdlarSelect(CoordinatorEntity[AdlarCoordinator], SelectEntity):
 
     @property
     def current_option(self) -> str | None:
-        return self.coordinator.data.get(self._key)
+        return self.coordinator.data.get(self._address)
 
     async def async_select_option(self, option: str) -> None:
         value = self._options_map.get(option)

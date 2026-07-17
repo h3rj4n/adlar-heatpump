@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, STATUS_BITS
+from .const import DOMAIN, STATUS_BITS, STATUS_REGISTER
 from .coordinator import AdlarCoordinator
 
 
@@ -26,14 +26,15 @@ async def async_setup_entry(
 class AdlarBinarySensor(CoordinatorEntity[AdlarCoordinator], BinarySensorEntity):
     def __init__(self, coordinator: AdlarCoordinator, mask, name):
         super().__init__(coordinator)
+        self._mask = mask
         self._attr_unique_id = f"{coordinator.entry_id}_status_{mask:04X}"
         self._attr_name = name
-        self._key = name
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
     @property
     def is_on(self) -> bool | None:
-        return self.coordinator.data.get(self._key)
+        raw = self.coordinator.data.get(STATUS_REGISTER)
+        return bool(raw & self._mask) if raw is not None else None
 
     @property
     def device_info(self):

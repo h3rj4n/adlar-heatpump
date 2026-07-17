@@ -11,7 +11,17 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, SENSOR_REGISTERS
+from .const import (
+    DOMAIN,
+    SENSOR_REGISTERS,
+    ENERGY_REGISTER,
+    WATER_INLET_TEMP_REGISTER,
+    WATER_OUTLET_TEMP_REGISTER,
+    WATER_FLOW_REGISTER,
+    UNIT_INPUT_POWER_REGISTER,
+    UNIT_INPUT_VOLTAGE_REGISTER,
+    UNIT_INPUT_CURRENT_REGISTER,
+)
 from .coordinator import AdlarCoordinator
 
 
@@ -52,7 +62,7 @@ class AdlarSensor(CoordinatorEntity[AdlarCoordinator], SensorEntity):
         self._attr_native_unit_of_measurement = unit
         self._attr_device_class = _safe_device_class(device_class)
         self._attr_state_class = SensorStateClass.MEASUREMENT
-        self._key = name
+        self._key = address
 
     @property
     def native_value(self):
@@ -86,7 +96,7 @@ class AdlarEnergySensor(CoordinatorEntity[AdlarCoordinator], SensorEntity):
 
     @property
     def native_value(self):
-        return self.coordinator.data.get("Unit Power Consumption")
+        return self.coordinator.data.get(ENERGY_REGISTER)
 
     @property
     def device_info(self):
@@ -114,9 +124,9 @@ class AdlarThermalPowerSensor(CoordinatorEntity[AdlarCoordinator], SensorEntity)
     def native_value(self) -> float | None:
         data = self.coordinator.data
         try:
-            flow = float(data.get("Water Flow") or 0)
-            t_in = float(data.get("Water Inlet Temp T6") or 0)
-            t_out = float(data.get("Water Outlet Temp T7") or 0)
+            flow = float(data.get(WATER_FLOW_REGISTER) or 0)
+            t_in = float(data.get(WATER_INLET_TEMP_REGISTER) or 0)
+            t_out = float(data.get(WATER_OUTLET_TEMP_REGISTER) or 0)
             delta_t = t_out - t_in
             thermal_kw = flow * delta_t * 4.186 / 60
             return round(thermal_kw, 2)
@@ -149,10 +159,10 @@ class AdlarCOPSensor(CoordinatorEntity[AdlarCoordinator], SensorEntity):
     def native_value(self) -> float | None:
         data = self.coordinator.data
         try:
-            flow = float(data.get("Water Flow") or 0)
-            t_in = float(data.get("Water Inlet Temp T6") or 0)
-            t_out = float(data.get("Water Outlet Temp T7") or 0)
-            electrical_kw = float(data.get("Unit Input Power") or 0)
+            flow = float(data.get(WATER_FLOW_REGISTER) or 0)
+            t_in = float(data.get(WATER_INLET_TEMP_REGISTER) or 0)
+            t_out = float(data.get(WATER_OUTLET_TEMP_REGISTER) or 0)
+            electrical_kw = float(data.get(UNIT_INPUT_POWER_REGISTER) or 0)
             if electrical_kw <= 0:
                 return None
             delta_t = t_out - t_in
@@ -187,8 +197,8 @@ class AdlarCalculatedPowerSensor(CoordinatorEntity[AdlarCoordinator], SensorEnti
     def native_value(self) -> float | None:
         data = self.coordinator.data
         try:
-            voltage = float(data.get("Supply Line Voltage") or 0)
-            current = float(data.get("Compressor Current Draw") or 0)
+            voltage = float(data.get(UNIT_INPUT_VOLTAGE_REGISTER) or 0)
+            current = float(data.get(UNIT_INPUT_CURRENT_REGISTER) or 0)
             if voltage <= 0:
                 return None
             return round(voltage * current, 1)
@@ -219,12 +229,12 @@ class AdlarRefrigerantSensor(CoordinatorEntity[AdlarCoordinator], SensorEntity):
 
     @property
     def native_value(self):
-        return self.coordinator.data.get("Refrigerant Type")
+        return self.coordinator.refrigerant_name
 
     @property
     def extra_state_attributes(self):
         return {
-            "temperature_scale": self.coordinator.data.get("Temperature Scale"),
+            "temperature_scale": self.coordinator.temperature_scale,
             "p119_register": "0x0177",
         }
 

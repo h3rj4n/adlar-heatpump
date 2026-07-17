@@ -87,9 +87,8 @@ ENERGY_REGISTER = 0x005D
 class AdlarNumberDescription(NumberEntityDescription):
     """Describes an Adlar Heatpump writable number (setpoint) register.
 
-    `key` doubles as the coordinator data-dict key (kept identical to the
-    legacy display name so other platforms, e.g. climate.py, can keep
-    reading `coordinator.data["Temp Set Cooling"]` unchanged).
+    `key` is used as the entity translation key and entity ID component.
+    Coordinator data is keyed by `address` (int), not by `key`.
     """
 
     address: int
@@ -261,6 +260,21 @@ SELECT_REGISTERS = [
 #   R410A (waarde 1) → ×1  (aanname, zelfde als R32)
 # ─────────────────────────────────────────────
 REFRIGERANT_REGISTER = 0x0177
+
+# Named addresses for registers referenced individually by entity platforms.
+# These all also appear inside SENSOR_REGISTERS, SELECT_REGISTERS, or
+# NUMBER_DESCRIPTIONS — the constants exist so consumer code can write
+# data.get(WATER_INLET_TEMP_REGISTER) instead of data.get(0x004F).
+COMPRESSOR_TARGET_FREQ_REGISTER  = 0x0027
+COMPRESSOR_FREQ_REGISTER         = 0x0040  # Compressor Running Frequency
+WATER_INLET_TEMP_REGISTER        = 0x004F  # T6 — used by climate + computed sensors
+WATER_OUTLET_TEMP_REGISTER       = 0x0050  # T7 — used by computed sensors
+WATER_FLOW_REGISTER              = 0x0058  # used by computed sensors
+UNIT_INPUT_VOLTAGE_REGISTER      = 0x005A  # used by calculated-power sensor
+UNIT_INPUT_CURRENT_REGISTER      = 0x005B  # used by calculated-power sensor
+UNIT_INPUT_POWER_REGISTER        = 0x005C  # used by COP sensor
+MODE_REGISTER                    = 0x0304  # also first entry in SELECT_REGISTERS
+RUNNING_MODE_REGISTER            = 0x0307  # also last entry in SELECT_REGISTERS
 
 REFRIGERANT_TYPES = {
     1: "R410A",
